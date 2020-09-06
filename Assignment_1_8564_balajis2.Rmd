@@ -1,0 +1,249 @@
+### CS598 - PSL - CODING ASSIGNMENT 1 
+### Net ID: balajis2
+### Date: 09/03/2020
+
+
+#### Step 1: Set seed for reproducibility
+
+```{r}
+set.seed(8564)
+```
+
+#### Step 2: Simulate data Generation by generating 20 centers, 10 for each group
+
+```{r}
+# Function to simulate training and test dataset
+simulateData = function(){
+  
+  csize = 10      
+  p = 2     
+  n = 200
+  N = 10000
+  s = 1       # sd for generating the centers within each class 
+  
+  m1 = matrix(rnorm(csize*p), csize, p)*s + cbind( rep(1,csize), rep(0,csize))
+  m0 = matrix(rnorm(csize*p), csize, p)*s + cbind( rep(0,csize), rep(1,csize))
+
+  df_train = data.frame("X1" =  rep(0,n),"X2" = rep(0,n),"Y" = rep(0,n))
+  df_test = data.frame("X1" =  rep(0,N),"X2" = rep(0,N),"Y" = rep(0,N))
+  
+  # Generate training data
+  n=100
+  # Randomly allocate the n samples for class 1  to the 10 clusters
+  id1 = sample(1:csize, n, replace = TRUE)
+  # Randomly allocate the n samples for class 1 to the 10 clusters
+  id0 = sample(1:csize, n, replace = TRUE)
+
+  s= sqrt(1/5)                              #sd for generating x
+
+  traindata = matrix(rnorm(2*n*p), 2*n, p)*s + rbind(m1[id1,], m0[id0,])
+  Ytrain = factor(c(rep(1,n), rep(0,n)))
+
+  #Generate test data
+  N = 5000
+  id1 = sample(1:csize, N, replace=TRUE)
+  id0 = sample(1:csize, N, replace=TRUE)
+  testdata = matrix(rnorm(2*N*p), 2*N, p)*s + 
+  rbind(m1[id1,], m0[id0,])
+  Ytest = factor(c(rep(1,N), rep(0,N)))
+  
+  df_train["X1"] = traindata[,1]
+  df_train["X2"] = traindata[,2]
+  df_train["Y"] = as.numeric(Ytrain)-1
+  
+  df_test["X1"] = testdata[,1]
+  df_test["X2"] = testdata[,2]
+  df_test["Y"] = as.numeric(Ytest)-1
+  
+  retlst = list(train = df_train,test = df_test,center1 = m0,center2 = m1)
+  return(retlst)
+}
+```
+
+#### Step 3: Run 20 simulations for different models - Linear,Quadratic,BayesRule and KNN
+
+```{r}
+library(class)
+
+num_methods = 4
+num_sets = 2
+num_sims = 20
+
+df_rows = num_methods * num_sets * num_sims
+
+mixnorm = function(x){
+   ## return the density ratio for a point x, where each 
+   ## density is a mixture of normal with 10 components
+   sum(exp(-apply((t(m1)-x)^2, 2, sum)*5/2))/sum(exp(-apply((t(m0)-x)^2, 2, sum)*5/2))
+}
+
+#Function to select K values from the train dataset
+selectbestcvK = function(train){
+  
+  dataSet = train
+  foldNum = 10
+  foldSize = floor(nrow(dataSet)/foldNum)
+  KVector = seq(1,(nrow(dataSet)-foldSize),2)
+  totalK = length(KVector)
+  error = 0
+  
+  cvError = data.frame("K" = rep(0,totalK),"error_rate" = rep(0,totalK))
+  
+  for (x in 1:totalK){
+    K = KVector[x]
+    
+    for (runId in 1:foldNum) {
+      myIndex = sample(1:nrow(dataSet))
+      testSetIndex = ((runId - 1) * foldSize + 1):(ifelse(runId == 
+            foldNum, nrow(dataSet), runId * foldSize))
+      testSetIndex = myIndex[testSetIndex]
+    
+      trainX = dataSet[-testSetIndex, c("X1", "X2")]
+      trainY = as.factor(dataSet[-testSetIndex, ]$Y)
+      testX = dataSet[testSetIndex, c("X1", "X2")]
+      testY = as.factor(dataSet[testSetIndex, ]$Y)
+      predictY = knn(trainX, testX, trainY, K)
+      error = error + sum(predictY != testY)
+    }
+    error = error/nrow(dataSet)
+    cvError[x,"K"] = K
+    cvError[x,"error_rate"] = error
+  }
+  
+  minErrorRate = min(cvError$error_rate) 
+  selectedK = max(cvError[cvError$error_rate == minErrorRate,]$K)
+  return(selectedK)
+  
+}
+
+error_rate = data.frame("method" = rep("",df_rows),"set" = rep("",df_rows),"errorRate" = rep(0,df_rows))
+selectedK = data.frame("K" = rep(0,20))
+
+n = 200
+N = 10000
+row = 1
+
+for(sim in 1:num_sims){
+  
+  lst = simulateData()
+  
+  train = lst$train
+  test = lst$test
+  m0 = data.matrix(lst$center1)
+  m1 = data.matrix(lst$center2)
+  
+  Ytrain = as.numeric(train$Y)
+  Ytest = as.numeric(test$Y)
+  test = test[1:2]
+
+  #Linear Regression Model
+  regModel = lm(Y~X1+X2,data = train)
+  Ytrain_pred = as.numeric(regModel$fitted>0.5)
+  Ytest_pred = as.numeric(predict(regModel,newdata = test) > 0.5)
+
+  train_error = round(sum(Ytrain != Ytrain_pred) / n,digits = 2)
+  test_error = round(sum(Ytest != Ytest_pred) / N,digits = 2)
+
+  error_rate[row,"method"] = "Linear"
+  error_rate[row,"set"] = "train"
+  error_rate[row,"errorRate"] = round(train_error,digits = 2)
+
+  row = row + 1
+
+  error_rate[row,"method"] = "Linear"
+  error_rate[row,"set"] = "test"
+  error_rate[row,"errorRate"] = round(test_error,digits = 2)
+
+  row = row + 1
+
+  #Quadratic Regression Model
+  quadModel = lm(Y ~ X1 + X2 + I(X1 * X2) + I(X1^2) + I(X2^2),data = train)
+  Ytrain_pred = as.numeric(quadModel$fitted>0.5)
+  Ytest_pred = as.numeric(predict(quadModel,newdata = test) > 0.5)
+
+  train_error = round(sum(Ytrain != Ytrain_pred) / n,digits = 2)
+  test_error = round(sum(Ytest != Ytest_pred) / N,digits = 2)
+
+  error_rate[row,"method"] = "Quadratic"
+  error_rate[row,"set"] = "train"
+  error_rate[row,"errorRate"] = round(train_error,digits = 2)
+
+  row = row + 1
+
+  error_rate[row,"method"] = "Quadratic"
+  error_rate[row,"set"] = "test"
+  error_rate[row,"errorRate"] = round(test_error,digits = 2)
+
+  row = row + 1
+
+  #Bayer Error
+
+  traindata = data.matrix(train[1:2])
+  Ytrain_pred = apply(traindata, 1, mixnorm)
+  Ytrain_pred = as.numeric(Ytrain_pred > 1)
+
+  testdata = data.matrix(test)
+  Ytest_pred = apply(testdata, 1, mixnorm)
+  Ytest_pred = as.numeric(Ytest_pred > 1)
+
+  train_error = round(sum(Ytrain !=  Ytrain_pred) / n,digits = 2)
+  test_error = round(sum(Ytest !=  Ytest_pred) / N,digits = 2)
+  
+  error_rate[row,"method"] = "Bayes"
+  error_rate[row,"set"] = "train"
+  error_rate[row,"errorRate"] = round(train_error,digits = 2)
+
+  row = row + 1
+
+  error_rate[row,"method"] = "Bayes"
+  error_rate[row,"set"] = "test"
+  error_rate[row,"errorRate"] = round(test_error,digits = 2)
+
+  row = row + 1
+  
+  #Calling the function to select the best K for the simulation run based on the train dataset
+  K = selectbestcvK(train)
+  selectedK[sim,"K"] = K 
+    
+  trainX = train[,c("X1", "X2")]
+  trainY = as.factor(train$Y)
+  testX = test[,c("X1", "X2")]
+  testY = as.factor(Ytest)
+  
+  predictTrnY = knn(trainX,trainX,trainY,K)
+  predictTestY = knn(trainX,testX,trainY,K)
+  
+  train_error = sum(predictTrnY != trainY)/n
+  test_error = sum(predictTestY != testY)/N
+
+  error_rate[row,"method"] = "KNN"
+  error_rate[row,"set"] = "train"
+  error_rate[row,"errorRate"] = round(train_error,digits = 2)
+
+  row = row + 1
+
+  error_rate[row,"method"] = "KNN"
+  error_rate[row,"set"] = "test"
+  error_rate[row,"errorRate"] = round(test_error,digits = 2)
+
+  row = row + 1
+  
+}
+```
+
+#### Step 4: Plot the performance of the models in boxplot using ggplot
+
+```{r}
+library(ggplot2)
+ggplot(error_rate, aes(x = method, y = errorRate, color = set)) + geom_boxplot(width = 0.2) + ggtitle("Comparison of performance of the 4 models") +
+  theme(plot.title = element_text(hjust = 0.5))
+```
+
+#### Step 5: Report the mean and sd for the selected K values in KNN
+
+```{r}
+meanK = round(mean(selectedK$K),digits = 2)
+sdK = round(sd(selectedK$K),digits = 2)
+```
+
+The mean of the selected K values for KNN is `r meanK ` and standard deviation is `r sdK`
