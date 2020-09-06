@@ -57,17 +57,17 @@ row = 1
 for(sim in 1:num_sims){
   
   lst = simulateData()
-   
+  ................ 
   #Linear Regression Model
   regModel = lm(Y~X1+X2,data = train)
   Ytrain_pred = as.numeric(regModel$fitted>0.5)
   Ytest_pred = as.numeric(predict(regModel,newdata = test) > 0.5)
-
+  ..................
   #Quadratic Regression Model
   quadModel = lm(Y ~ X1 + X2 + I(X1 * X2) + I(X1^2) + I(X2^2),data = train)
   Ytrain_pred = as.numeric(quadModel$fitted>0.5)
   Ytest_pred = as.numeric(predict(quadModel,newdata = test) > 0.5)
-  
+  ...................
   #Bayer Error
   traindata = data.matrix(train[1:2])
   Ytrain_pred = apply(traindata, 1, mixnorm)
@@ -76,7 +76,7 @@ for(sim in 1:num_sims){
   testdata = data.matrix(test)
   Ytest_pred = apply(testdata, 1, mixnorm)
   Ytest_pred = as.numeric(Ytest_pred > 1)
-
+  ..................
   #Calling the function to select the best K
   K = selectbestcvK(train)
   selectedK[sim,"K"] = K 
