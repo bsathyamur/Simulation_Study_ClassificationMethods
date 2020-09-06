@@ -31,7 +31,7 @@ simulateData = function(){
   return(retlst)
 }
 ````
-### Run 20 simulations for different models - Linear,Quadratic,BayesRule and KNN
+#### Run 20 simulations for different models - Linear,Quadratic,BayesRule and KNN
 ````
 mixnorm = function(x){
    ## return the density ratio for a point x, where each 
@@ -90,15 +90,16 @@ for(sim in 1:num_sims){
   predictTrnY = knn(trainX,trainX,trainY,K)
   predictTestY = knn(trainX,testX,trainY,K)
 }
-
-#Plot the performance of the models in boxplot using ggplot
+````
+#### Plot the performance of the models in boxplot using ggplot
+````
 library(ggplot2)
 ggplot(error_rate, aes(x = method, y = errorRate, color = set)) + geom_boxplot(width = 0.2) + ggtitle("Comparison of performance of the 4 models") +
   theme(plot.title = element_text(hjust = 0.5))
 ````
 ![comparison](https://github.com/bsathyamur/Simulation_Study_ClassificationMethods/blob/master/comparison.png)
 
-Calculate the mean and sd for the selected K values
+#### Calculate the mean and sd for the selected K values
 ````
 meanK = round(mean(selectedK$K),digits = 2)
 sdK = round(sd(selectedK$K),digits = 2)
